@@ -4,18 +4,91 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StudyLog</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f7f6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      color: #333;
+    }
+    .card {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.5rem;
+      color: #555;
+    }
+    .status {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 20px;
+    }
+    .timer {
+      font-size: 4rem;
+      font-weight: bold;
+      font-family: monospace;
+      color: #2c3e50;
+      margin: 20px 0;
+    }
+    .buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #btn-start { background-color: #2ecc71; color: white; }
+    #btn-pause { background-color: #e67e22; color: white; }
+    #btn-reset { background-color: #95a5a6; color: white; }
+    button:hover:not(:disabled) { transform: translateY(-2px); }
+  </style>
 </head>
 <body>
-  <h1>StudyLog</h1>
-  <p id="status">データベース接続中...</p>
 
+  <div class="card">
+    <h1>StudyLog</h1>
+    <div id="status" class="status">Firebaseに接続中...</div>
+    <div id="timer-display" class="timer">00:00:00</div>
+
+    <div class="buttons">
+      <button id="btn-start">スタート</button>
+      <button id="btn-pause" disabled>一時停止</button>
+      <button id="btn-reset">リセット</button>
+    </div>
+  </div>
+
+  <!-- Firebase SDK の読み込み -->
   <script type="module">
-    // Firebase SDKの読み込み
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // Step 2 で取得した firebaseConfig をここに貼り付けます
-    const firebaseConfig = {
+    // ============================================================
+    // 1. Firebaseコンソールで取得した firebaseConfig を貼り付けてください
+    // ============================================================
+   const firebaseConfig = {
   apiKey: "AIzaSyCLAC2giwRusPVX2tjn3vxzKVQ06JeUvGc",
   authDomain: "sample-f3493.firebaseapp.com",
   projectId: "sample-f3493",
@@ -24,11 +97,102 @@
   appId: "1:860621969620:web:133e89696aebd3c9d34341"
 };
 
-    // Firebaseの初期化
+    // Firebase 初期化
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    document.getElementById("status").textContent = "Firebaseに接続されました！";
+    // タイマーデータを保存するドキュメントへの参照 (timers/study)
+    const timerDocRef = doc(db, "timers", "study");
+
+    // UI要素の取得
+    const timerDisplay = document.getElementById("timer-display");
+    const statusText = document.getElementById("status");
+    const btnStart = document.getElementById("btn-start");
+    const btnPause = document.getElementById("btn-pause");
+    const btnReset = document.getElementById("btn-reset");
+
+    let localInterval = null;
+    let currentData = { isRunning: false, startTime: null, accumulatedSeconds: 0 };
+
+    // 時間のフォーマット処理 (秒 -> HH:MM:SS)
+    function formatTime(totalSeconds) {
+      const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(Math.floor(totalSeconds % 60)).padStart(2, '0');
+      return `${hrs}:${mins}:${secs}`;
+    }
+
+    // 画面表示の更新処理
+    function updateDisplay() {
+      let total = currentData.accumulatedSeconds || 0;
+      if (currentData.isRunning && currentData.startTime) {
+        const elapsedSinceStart = Math.floor((Date.now() - currentData.startTime) / 1000);
+        total += elapsedSinceStart;
+      }
+      timerDisplay.textContent = formatTime(total);
+    }
+
+    // ============================================================
+    // 2. リアルタイム受信 (Cloud Firestore onSnapshot)
+    // ============================================================
+    onSnapshot(timerDocRef, (docSnap) => {
+      statusText.textContent = "🟢 同期中 (リアルタイム受信用)";
+
+      if (docSnap.exists()) {
+        currentData = docSnap.data();
+      } else {
+        // ドキュメントがまだ存在しない場合の初期データ
+        currentData = { isRunning: false, startTime: null, accumulatedSeconds: 0 };
+      }
+
+      // ボタンの状態切り替え
+      btnStart.disabled = currentData.isRunning;
+      btnPause.disabled = !currentData.isRunning;
+
+      // ローカルのタイマー描画ループ制御
+      if (localInterval) clearInterval(localInterval);
+      
+      updateDisplay();
+      if (currentData.isRunning) {
+        localInterval = setInterval(updateDisplay, 1000);
+      }
+    }, (error) => {
+      console.error(error);
+      statusText.textContent = "🔴 接続エラー（Firestore設定を確認してください）";
+    });
+
+    // ============================================================
+    // 3. ボタン操作時のデータベース更新機能
+    // ============================================================
+
+    // スタートボタン
+    btnStart.addEventListener("click", async () => {
+      await setDoc(timerDocRef, {
+        isRunning: true,
+        startTime: Date.now(),
+        accumulatedSeconds: currentData.accumulatedSeconds || 0
+      });
+    });
+
+    // 一時停止ボタン
+    btnPause.addEventListener("click", async () => {
+      if (!currentData.isRunning) return;
+      const additional = Math.floor((Date.now() - currentData.startTime) / 1000);
+      await setDoc(timerDocRef, {
+        isRunning: false,
+        startTime: null,
+        accumulatedSeconds: (currentData.accumulatedSeconds || 0) + additional
+      });
+    });
+
+    // リセットボタン
+    btnReset.addEventListener("click", async () => {
+      await setDoc(timerDocRef, {
+        isRunning: false,
+        startTime: null,
+        accumulatedSeconds: 0
+      });
+    });
   </script>
 </body>
 </html>
