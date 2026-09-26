@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyLog</title>
+</head>
+<body>
+  <h1>StudyLog</h1>
+  <p id="status">データベース接続中...</p>
+
+  <script type="module">
+    // Firebase SDKの読み込み
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // Step 2 で取得した firebaseConfig をここに貼り付けます
+    const firebaseConfig = {
+  apiKey: "AIzaSyCLAC2giwRusPVX2tjn3vxzKVQ06JeUvGc",
+  authDomain: "sample-f3493.firebaseapp.com",
+  projectId: "sample-f3493",
+  storageBucket: "sample-f3493.firebasestorage.app",
+  messagingSenderId: "860621969620",
+  appId: "1:860621969620:web:133e89696aebd3c9d34341"
+};
+
+    // Firebaseの初期化
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    document.getElementById("status").textContent = "Firebaseに接続されました！";
+  </script>
+</body>
+</html>
